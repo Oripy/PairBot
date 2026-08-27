@@ -258,7 +258,7 @@ async def on_message(message):
                 await message.channel.send("⚠️ An error occurred while routing the message.")
                 print(f"Relay Error: {e}")
         else:
-            await message.channel.send("You are not currently paired with anyone.")
+            await message.channel.send("❌ You are not currently paired with anyone.")
 
 # --- ERROR HANDLING ---
 @bot.event
