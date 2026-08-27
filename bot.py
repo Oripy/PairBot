@@ -32,6 +32,7 @@ if not ADMIN_ID:
 intents = discord.Intents.default()
 intents.message_content = True  # Required to read message contents
 bot = commands.Bot(command_prefix='$', intents=intents)
+bot.remove_command('help')
 
 # Dictionary to hold symmetric pairs: {user1_id: user2_id, user2_id: user1_id}
 pairs = {}
@@ -68,6 +69,17 @@ def save_admins():
         admin_file.write('\n'.join(str(admin_id) for admin_id in ADMIN_ID) + '\n')
 
 # --- COMMANDS ---
+@bot.command()
+@commands.check(is_admin)
+@commands.dm_only()
+async def help(ctx):
+    """Lists all available commands and their usage."""
+    commands_list = sorted(
+        f"`{bot.command_prefix}{command.name}`: {command.help or 'No description available.'}"
+        for command in bot.commands
+    )
+    await ctx.send("**Available commands:**\n" + "\n".join(commands_list))
+
 @bot.command()
 @commands.check(is_admin)
 @commands.dm_only()
