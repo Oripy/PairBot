@@ -128,6 +128,32 @@ async def removeadmin(ctx, user_id: int):
     save_admins()
     await ctx.send(f"✅ Successfully removed `{user_id}` as an admin.")
 
+@bot.command(name="listadmins", aliases=["admins"])
+@commands.check(is_admin)
+@commands.dm_only()
+async def list_admins(ctx):
+    """Admin command: Lists all admins ($listadmins)"""
+    if not ADMIN_ID:
+        await ctx.send("No admins are currently configured.")
+        return
+
+    admin_list = []
+    for admin_id in ADMIN_ID:
+        user = bot.get_user(admin_id)
+        if not user:
+            try:
+                user = await bot.fetch_user(admin_id)
+            except discord.NotFound:
+                admin_list.append(f"• `Unknown User ({admin_id})`")
+                continue
+            except discord.HTTPException:
+                admin_list.append(f"• `Error Fetching ({admin_id})`")
+                continue
+
+        admin_list.append(f"• `{user.name} ({admin_id})`")
+
+    await ctx.send("**Current admins:**\n" + "\n".join(admin_list))
+
 @bot.command()
 @commands.check(is_admin)
 @commands.dm_only()
