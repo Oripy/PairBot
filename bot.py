@@ -73,7 +73,7 @@ def save_admins():
 @commands.check(is_admin)
 @commands.dm_only()
 async def help(ctx):
-    """Lists all available commands and their usage."""
+    """Admin command: Lists all available commands and their usage."""
     commands_list = sorted(
         f"`{bot.command_prefix}{command.name}`: {command.help or 'No description available.'}"
         for command in bot.commands
