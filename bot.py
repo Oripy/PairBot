@@ -93,20 +93,42 @@ async def unpair(ctx, user_id: int):
 @commands.check(is_admin)
 @commands.dm_only()
 async def list_pairs(ctx):
-    """Admin command: Lists all current user pairs ($list)"""
+    """Admin command: Lists all current user pairs with usernames ($list)"""
     if not pairs:
         await ctx.send("No pairs are currently set.")
         return
 
+    # Send a temporary loading message since fetching users from Discord's API can take a second
+    loading_msg = await ctx.send("⏳ Fetching usernames...")
+
     listed = set()
     message = "**Current Pairs:**\n"
+    
     for u1, u2 in pairs.items():
         if u1 not in listed:
-            message += f"• `{u1}` ↔ `{u2}`\n"
+            # Helper function to get a user's name safely
+            async def get_user_display(user_id):
+                user = bot.get_user(user_id) # Try local cache first
+                if not user:
+                    try:
+                        user = await bot.fetch_user(user_id) # Ask Discord API
+                    except discord.NotFound:
+                        return f"Unknown User ({user_id})"
+                    except discord.HTTPException:
+                        return f"Error Fetching ({user_id})"
+                # Return the username and the ID for clarity
+                return f"{user.name} ({user_id})"
+
+            name1 = await get_user_display(u1)
+            name2 = await get_user_display(u2)
+
+            message += f"• `{name1}` ↔ `{name2}`\n"
+            
             listed.add(u1)
             listed.add(u2)
     
-    await ctx.send(message)
+    # Edit the loading message with the final list
+    await loading_msg.edit(content=message)
 
 # --- EVENTS ---
 @bot.event
