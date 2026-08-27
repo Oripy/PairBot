@@ -4,10 +4,19 @@ import csv
 import os
 
 # --- CONFIGURATION ---
-TOKEN = '1542505234251915304'
+TOKEN_FILE = 'token.txt'
 ADMIN_ID = [619080219000832000]
 CSV_FILE = 'pairs.csv'
 # ---------------------
+
+try:
+    with open(TOKEN_FILE, encoding='utf-8') as token_file:
+        TOKEN = token_file.read().strip()
+except FileNotFoundError as error:
+    raise RuntimeError(f'Missing token file: {TOKEN_FILE}') from error
+
+if not TOKEN:
+    raise RuntimeError(f'Token file is empty: {TOKEN_FILE}')
 
 intents = discord.Intents.default()
 intents.message_content = True  # Required to read message contents
