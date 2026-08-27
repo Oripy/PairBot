@@ -1,0 +1,162 @@
+import discord
+from discord.ext import commands
+import csv
+import os
+
+# --- CONFIGURATION ---
+TOKEN = '1542505234251915304'
+ADMIN_ID = [619080219000832000]
+CSV_FILE = 'pairs.csv'
+# ---------------------
+
+intents = discord.Intents.default()
+intents.message_content = True  # Required to read message contents
+bot = commands.Bot(command_prefix='$', intents=intents)
+
+# Dictionary to hold symmetric pairs: {user1_id: user2_id, user2_id: user1_id}
+pairs = {}
+
+def load_pairs():
+    """Loads pairs from the CSV file into memory."""
+    if os.path.exists(CSV_FILE):
+        with open(CSV_FILE, mode='r', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if len(row) == 2:
+                    u1, u2 = int(row[0]), int(row[1])
+                    pairs[u1] = u2
+                    pairs[u2] = u1
+
+def save_pairs():
+    """Saves the current memory dictionary back to the CSV file."""
+    written = set()
+    with open(CSV_FILE, mode='w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        for u1, u2 in pairs.items():
+            if u1 not in written:
+                writer.writerow([u1, u2])
+                written.add(u1)
+                written.add(u2)
+
+# --- CHECKS ---
+def is_admin(ctx):
+    return ctx.author.id in ADMIN_ID
+
+# --- COMMANDS ---
+@bot.command()
+@commands.check(is_admin)
+@commands.dm_only()
+async def pair(ctx, user1_id: int, user2_id: int):
+    """Admin command: Pairs two users together ($pair <user1_id> <user2_id>)"""
+    if user1_id in pairs:
+        await ctx.send(f"User {user1_id} is already paired with {pairs[user1_id]}. Unpair them first.")
+        return
+    if user2_id in pairs:
+        await ctx.send(f"User {user2_id} is already paired with {pairs[user2_id]}. Unpair them first.")
+        return
+
+    # Assign pair in both directions
+    pairs[user1_id] = user2_id
+    pairs[user2_id] = user1_id
+    save_pairs()
+    
+    await ctx.send(f"✅ Successfully paired `{user1_id}` with `{user2_id}`.")
+
+@bot.command()
+@commands.check(is_admin)
+@commands.dm_only()
+async def unpair(ctx, user_id: int):
+    """Admin command: Removes a pair involving the given user ($unpair <user_id>)"""
+    if user_id not in pairs:
+        await ctx.send(f"❌ User `{user_id}` is not currently in a pair.")
+        return
+
+    partner_id = pairs[user_id]
+    
+    # Remove from both sides
+    del pairs[user_id]
+    del pairs[partner_id]
+    save_pairs()
+
+    await ctx.send(f"✅ Successfully unpaired `{user_id}` and `{partner_id}`.")
+
+@bot.command(name="list")
+@commands.check(is_admin)
+@commands.dm_only()
+async def list_pairs(ctx):
+    """Admin command: Lists all current user pairs ($list)"""
+    if not pairs:
+        await ctx.send("No pairs are currently set.")
+        return
+
+    listed = set()
+    message = "**Current Pairs:**\n"
+    for u1, u2 in pairs.items():
+        if u1 not in listed:
+            message += f"• `{u1}` ↔ `{u2}`\n"
+            listed.add(u1)
+            listed.add(u2)
+    
+    await ctx.send(message)
+
+# --- EVENTS ---
+@bot.event
+async def on_ready():
+    load_pairs()
+    print(f'Logged in as {bot.user} (ID: {bot.user.id})')
+    print('Pairs loaded:', pairs)
+
+@bot.event
+async def on_message(message):
+    # Ignore messages sent by the bot itself
+    if message.author == bot.user:
+        return
+
+    # Process commands first so admin commands aren't treated as relayed messages
+    await bot.process_commands(message)
+
+    # Check if the message is in a DM and doesn't start with the command prefix
+    if isinstance(message.channel, discord.DMChannel) and not message.content.startswith(bot.command_prefix):
+        author_id = message.author.id
+        
+        # If the user is part of a pair, relay the message
+        if author_id in pairs:
+            target_id = pairs[author_id]
+            
+            try:
+                # Fetch the target user object
+                target_user = await bot.fetch_user(target_id)
+                
+                # Relay attachments if they sent images/files
+                files = []
+                for attachment in message.attachments:
+                    files.append(await attachment.to_file())
+                
+                # Send the message to the paired user
+                await target_user.send(content=message.content, files=files)
+                
+            except discord.Forbidden:
+                # Triggers if the target user has blocked the bot or disabled DMs
+                await message.channel.send("⚠️ Cannot send message. Your partner has DMs disabled.")
+            except discord.NotFound:
+                await message.channel.send("⚠️ Partner user account not found.")
+            except Exception as e:
+                await message.channel.send("⚠️ An error occurred while routing the message.")
+                print(f"Relay Error: {e}")
+
+# --- ERROR HANDLING ---
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CheckFailure):
+        await ctx.send("❌ You do not have permission to use this command.")
+    elif isinstance(error, commands.PrivateMessageOnly):
+        await ctx.send("❌ This command can only be used in Private Messages.")
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("❌ Missing arguments. Check the command syntax.")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send("❌ Invalid argument. Please provide valid User IDs (numbers).")
+    else:
+        raise error
+
+# Run the bot
+bot.run(TOKEN)
