@@ -5,7 +5,7 @@ import os
 
 # --- CONFIGURATION ---
 TOKEN_FILE = 'token.txt'
-ADMIN_ID = [619080219000832000]
+ADMIN_FILE = 'admin.txt'
 CSV_FILE = 'pairs.csv'
 # ---------------------
 
@@ -17,6 +17,17 @@ except FileNotFoundError as error:
 
 if not TOKEN:
     raise RuntimeError(f'Token file is empty: {TOKEN_FILE}')
+
+try:
+    with open(ADMIN_FILE, encoding='utf-8') as admin_file:
+        ADMIN_ID = [int(line.strip()) for line in admin_file if line.strip()]
+except FileNotFoundError as error:
+    raise RuntimeError(f'Missing admin file: {ADMIN_FILE}') from error
+except ValueError as error:
+    raise RuntimeError(f'Admin file contains an invalid user ID: {ADMIN_FILE}') from error
+
+if not ADMIN_ID:
+    raise RuntimeError(f'Admin file is empty: {ADMIN_FILE}')
 
 intents = discord.Intents.default()
 intents.message_content = True  # Required to read message contents
@@ -51,6 +62,11 @@ def save_pairs():
 def is_admin(ctx):
     return ctx.author.id in ADMIN_ID
 
+def save_admins():
+    """Saves the current admin list to the local configuration file."""
+    with open(ADMIN_FILE, mode='w', encoding='utf-8') as admin_file:
+        admin_file.write('\n'.join(str(admin_id) for admin_id in ADMIN_ID) + '\n')
+
 # --- COMMANDS ---
 @bot.command()
 @commands.check(is_admin)
@@ -70,6 +86,35 @@ async def pair(ctx, user1_id: int, user2_id: int):
     save_pairs()
     
     await ctx.send(f"✅ Successfully paired `{user1_id}` with `{user2_id}`.")
+
+@bot.command()
+@commands.check(is_admin)
+@commands.dm_only()
+async def addadmin(ctx, user_id: int):
+    """Admin command: Adds a user to the admin list ($addadmin <user_id>)"""
+    if user_id in ADMIN_ID:
+        await ctx.send(f"❌ User `{user_id}` is already an admin.")
+        return
+
+    ADMIN_ID.append(user_id)
+    save_admins()
+    await ctx.send(f"✅ Successfully added `{user_id}` as an admin.")
+
+@bot.command()
+@commands.check(is_admin)
+@commands.dm_only()
+async def removeadmin(ctx, user_id: int):
+    """Admin command: Removes a user from the admin list ($removeadmin <user_id>)"""
+    if user_id == ctx.author.id:
+        await ctx.send("❌ You cannot remove yourself as an admin.")
+        return
+    if user_id not in ADMIN_ID:
+        await ctx.send(f"❌ User `{user_id}` is not currently an admin.")
+        return
+
+    ADMIN_ID.remove(user_id)
+    save_admins()
+    await ctx.send(f"✅ Successfully removed `{user_id}` as an admin.")
 
 @bot.command()
 @commands.check(is_admin)
