@@ -260,6 +260,16 @@ async def on_message(message):
         else:
             await message.channel.send("❌ You are not currently paired with anyone.")
 
+@bot.event
+async def on_message_edit(before, after):
+    # Ignore edits made by the bot itself
+    if after.author == bot.user:
+        return
+
+    # Check if the edit happened in a DM and if the user is in a pair
+    if isinstance(after.channel, discord.DMChannel) and after.author.id in pairs:
+        await after.channel.send("⚠️ Updates made to message are not supported. Your partner will not see the changes. Please send a new message instead.")
+
 # --- ERROR HANDLING ---
 @bot.event
 async def on_command_error(ctx, error):
